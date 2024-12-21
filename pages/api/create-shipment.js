@@ -103,6 +103,10 @@ async function getSiteId(cityName, postCode) {
 
     const response = await axios.post(`${process.env.SPEEDY_API_BASE_URL}/location/site/`, payload);
 
+    if (!response.data.sites || response.data.sites.length === 0) {
+      throw new Error(`No site found for city "${cityName}" and ZIP code "${postCode}".`);
+    }
+
     console.log("SiteId API response:", response.data);
 
     return response.data.sites[0]?.id; // Return the first matching siteId
@@ -126,6 +130,10 @@ async function getStreetId(siteId, streetName) {
     console.log("Fetching streetId with payload:", payload);
 
     const response = await axios.post(`${process.env.SPEEDY_API_BASE_URL}/location/street/`, payload);
+
+    if (!response.data.streets || response.data.streets.length === 0) {
+      throw new Error(`No street found for name "${streetName}" in siteId "${siteId}".`);
+    }
 
     console.log("StreetId API response:", response.data);
 
