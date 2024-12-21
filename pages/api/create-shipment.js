@@ -99,9 +99,10 @@ async function getSiteId(cityName, postCode) {
       postCode: postCode
     };
 
-    console.log("Fetching siteId with payload:", payload);
+    const apiUrl = `${process.env.SPEEDY_API_BASE_URL}/location/site/`;
+    console.log("Fetching siteId with payload:", payload, "API URL:", apiUrl);
 
-    const response = await axios.post(`${process.env.SPEEDY_API_BASE_URL}/location/site/`, payload);
+    const response = await axios.post(apiUrl, payload);
 
     if (!response.data.sites || response.data.sites.length === 0) {
       throw new Error(`No site found for city "${cityName}" and ZIP code "${postCode}".`);
