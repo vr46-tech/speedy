@@ -38,16 +38,18 @@ export default async function handler(req, res) {
           },
         },
         payment: {
-          payerRole: orderDetails.payerRole || "SENDER",
+          payerRole: orderDetails.payerRole || "SENDER", // Default payerRole
         },
       };
 
-      // Add office details for drop-off and delivery if specified
-      if (orderDetails.originOfficeId) {
-        payload.officeToBeCalledId = orderDetails.originOfficeId; // Drop-off office
+      // Include the drop-off office (origin office)
+      if (orderDetails.officeToBeCalledId) {
+        payload.officeToBeCalledId = orderDetails.officeToBeCalledId; // Drop-off office ID
       }
-      if (orderDetails.deliveryToOffice) {
-        payload.officeId = orderDetails.officeId; // Destination office for the recipient
+
+      // Include the delivery office if specified
+      if (orderDetails.deliveryToOffice && orderDetails.officeId) {
+        payload.officeId = orderDetails.officeId; // Destination office ID
       }
 
       // Make the request to Speedy's API
@@ -59,6 +61,18 @@ export default async function handler(req, res) {
       const errorMessage = error.response?.data || error.message;
 
       // Handle errors
+      if (
+        errorMessage?.context ===
+        "service_collection_validator.courier-collection-expired-office-collection-possible"
+      ) {
+        return res.status(400).json({
+          error: {
+            message: "Pickup time expired. Please drop off at an office.",
+            suggestedOffice: "565 - Sofia - Druzhba 1, Do Ezeryoto",
+          },
+        });
+      }
+
       res.status(500).json({
         error: {
           context: "shipment_creation_error",
