@@ -31,21 +31,23 @@ export default async function handler(req, res) {
           privatePerson: true,
           clientName: orderDetails.name,
           address: {
-            countryId: 100, // Adjust based on your requirements
-            siteId: 68134,  // Adjust based on your requirements
-            streetId: 3109, // Adjust based on your requirements
-            streetNo: orderDetails.address, // Ensure this is 10 characters or fewer
+            countryId: 100,
+            siteId: 68134,
+            streetId: 3109,
+            streetNo: orderDetails.address,
           },
         },
         payment: {
-          payerRole: orderDetails.payerRole || "SENDER", // Default to SENDER if not provided
+          payerRole: orderDetails.payerRole || "SENDER",
         },
-        pickupDate: orderDetails.pickupDate || new Date().toISOString().split('T')[0], // Default to today
       };
 
-      // Add office delivery if specified
+      // Add office details for drop-off and delivery if specified
+      if (orderDetails.originOfficeId) {
+        payload.officeToBeCalledId = orderDetails.originOfficeId; // Drop-off office
+      }
       if (orderDetails.deliveryToOffice) {
-        payload.officeId = orderDetails.officeId; // Include office ID for office delivery
+        payload.officeId = orderDetails.officeId; // Destination office for the recipient
       }
 
       // Make the request to Speedy's API
@@ -56,20 +58,7 @@ export default async function handler(req, res) {
     } catch (error) {
       const errorMessage = error.response?.data || error.message;
 
-      // Handle expired pickup time and suggest office delivery
-      if (
-        errorMessage?.context ===
-        "service_collection_validator.courier-collection-expired-office-collection-possible"
-      ) {
-        return res.status(400).json({
-          error: {
-            message: "Pickup time expired. Office delivery is recommended.",
-            suggestedOffice: "565 - Sofia - Druzhba 1, Do Ezeryoto",
-          },
-        });
-      }
-
-      // Handle other errors
+      // Handle errors
       res.status(500).json({
         error: {
           context: "shipment_creation_error",
