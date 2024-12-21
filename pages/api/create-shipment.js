@@ -1,63 +1,66 @@
-import axios from 'axios';
+import axios from "axios";
 
 export default async function handler(req, res) {
-  console.log("Incoming Request:", req.method, req.body);
-
-  if (req.method === 'POST') {
+  if (req.method === "POST") {
     try {
+      // Log the incoming Shopify webhook payload for debugging
+      console.log("Incoming Shopify Webhook Payload:", req.body);
+
       const shopifyPayload = req.body;
 
-      // Validate the incoming Shopify payload
-      if (
-        !shopifyPayload.shipping_address ||
-        !shopifyPayload.shipping_address.city ||
-        !shopifyPayload.shipping_address.zip ||
-        !shopifyPayload.shipping_address.address1 ||
-        !shopifyPayload.shipping_address.phone
-      ) {
-        console.log("Validation failed: Missing required fields in Shopify payload.");
+      // Validate the presence of the shipping_address field
+      if (!shopifyPayload.shipping_address) {
+        console.error("Missing shipping_address in Shopify payload.");
         return res.status(400).json({
           error: {
             context: "validation.error",
-            message: "Missing required fields in Shopify payload: city, street, zipCode, or phone.",
+            message: "Missing shipping_address in Shopify payload.",
           },
         });
       }
 
-      console.log("Shopify Payload:", JSON.stringify(shopifyPayload, null, 2));
-
+      // Extract necessary fields from the Shopify payload
+      const shippingAddress = shopifyPayload.shipping_address;
       const orderDetails = {
-        city: shopifyPayload.shipping_address.city,
-        zipCode: shopifyPayload.shipping_address.zip,
-        street: shopifyPayload.shipping_address.address1,
+        city: shippingAddress.city,
+        zipCode: shippingAddress.zip,
+        street: shippingAddress.address1,
         sender: {
           phone1: { number: "0888112233" }, // Default sender information
           contactName: "IVAN PETROV",
-          email: "ivan@petrov.bg"
+          email: "ivan@petrov.bg",
         },
-        recipientPhone: shopifyPayload.shipping_address.phone,
-        recipientName: `${shopifyPayload.shipping_address.first_name} ${shopifyPayload.shipping_address.last_name}`,
+        recipientPhone: shippingAddress.phone,
+        recipientName: `${shippingAddress.first_name} ${shippingAddress.last_name}`,
         service: {
           serviceId: 505,
-          autoAdjustPickupDate: true
+          autoAdjustPickupDate: true,
         },
         content: {
           parcelsCount: 1,
           contents: "Documents",
           package: "ENVELOPE",
-          totalWeight: 0.2
+          totalWeight: 0.2,
         },
         payment: {
-          courierServicePayer: "RECIPIENT"
+          courierServicePayer: "RECIPIENT",
         },
-        ref: `Order-${shopifyPayload.id}`
+        ref: `Order-${shopifyPayload.id}`,
       };
 
-      console.log("Processed Order Details:", JSON.stringify(orderDetails, null, 2));
+      // Validate required fields in the orderDetails
+      if (!orderDetails.city || !orderDetails.zipCode || !orderDetails.street || !orderDetails.recipientPhone) {
+        console.error("Missing required fields in Shopify payload:", orderDetails);
+        return res.status(400).json({
+          error: {
+            context: "validation.error",
+            message: "Missing required fields: city, street, zipCode, or phone.",
+          },
+        });
+      }
 
       // Fetch siteId (City)
       const siteId = await getSiteId(orderDetails.city, orderDetails.zipCode);
-      console.log("Fetched SiteId:", siteId);
       if (!siteId) {
         return res.status(400).json({
           error: {
@@ -69,7 +72,6 @@ export default async function handler(req, res) {
 
       // Fetch streetId (Street)
       const streetId = await getStreetId(siteId, orderDetails.street);
-      console.log("Fetched StreetId:", streetId);
       if (!streetId) {
         return res.status(400).json({
           error: {
@@ -93,11 +95,7 @@ export default async function handler(req, res) {
             countryId: 100, // Bulgaria
             siteId: siteId,
             streetId: streetId,
-            streetNo: orderDetails.streetNo || "N/A", // Default to "N/A" if not provided
-            blockNo: orderDetails.blockNo || "",
-            entranceNo: orderDetails.entranceNo || "",
-            floorNo: orderDetails.floorNo || "",
-            apartmentNo: orderDetails.apartmentNo || "",
+            streetNo: "N/A", // Default value for street number
           },
         },
         service: orderDetails.service,
@@ -106,20 +104,20 @@ export default async function handler(req, res) {
         ref1: orderDetails.ref || "ORDER123456",
       };
 
-      console.log("Prepared Shipment Payload:", JSON.stringify(payload, null, 2));
-
       // Make the API request to create the shipment
       const response = await axios.post(`${process.env.SPEEDY_API_BASE_URL}/shipment/`, payload);
 
-      console.log("Shipment created successfully:", JSON.stringify(response.data, null, 2));
+      // Log the successful shipment creation
+      console.log("Shipment created successfully:", response.data);
 
       res.status(200).json({
         message: "Shipment created successfully",
-        shipmentData: response.data
+        shipmentData: response.data,
       });
     } catch (error) {
       const errorMessage = error.response?.data || error.message;
 
+      // Log and return the error
       console.error("Error handling Shopify webhook or creating shipment:", errorMessage);
       res.status(500).json({
         error: {
@@ -143,13 +141,12 @@ async function getSiteId(cityName, postCode) {
       language: "EN",
       countryId: 100, // Bulgaria
       name: cityName,
-      postCode: postCode
+      postCode: postCode,
     };
 
-    const apiUrl = `${process.env.SPEEDY_API_BASE_URL}/location/site/`;
-    console.log("Fetching siteId with payload:", payload, "API URL:", apiUrl);
+    console.log("Fetching siteId with payload:", payload);
 
-    const response = await axios.post(apiUrl, payload);
+    const response = await axios.post(`${process.env.SPEEDY_API_BASE_URL}/location/site/`, payload);
 
     if (!response.data.sites || response.data.sites.length === 0) {
       throw new Error(`No site found for city "${cityName}" and ZIP code "${postCode}".`);
@@ -172,7 +169,7 @@ async function getStreetId(siteId, streetName) {
       password: process.env.SPEEDY_PASSWORD,
       language: "EN",
       siteId: siteId,
-      name: streetName
+      name: streetName,
     };
 
     console.log("Fetching streetId with payload:", payload);
