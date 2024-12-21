@@ -40,7 +40,13 @@ export default async function handler(req, res) {
         payment: {
           payerRole: orderDetails.payerRole || "SENDER", // Default to SENDER if not provided
         },
+        pickupDate: orderDetails.pickupDate || new Date().toISOString().split('T')[0], // Default to today
       };
+
+      // Add office delivery details if specified
+      if (orderDetails.deliveryToOffice) {
+        payload.officeId = orderDetails.officeId; // Include office ID for office delivery
+      }
 
       // Make the request to Speedy's API
       const response = await axios.post('https://api.speedy.bg/v1/shipment', payload);
