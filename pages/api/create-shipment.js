@@ -5,11 +5,11 @@ export default async function handler(req, res) {
     const { orderDetails } = req.body;
 
     // Validate required fields
-    if (!orderDetails.phone || !orderDetails.name || !orderDetails.officeId) {
+    if (!orderDetails.phone || !orderDetails.name || !orderDetails.officeId || !orderDetails.recipientOfficeId) {
       return res.status(400).json({
         error: {
           context: "validation.error",
-          message: "Missing required fields: phone, name, or officeId.",
+          message: "Missing required fields: phone, name, officeId, or recipientOfficeId.",
         },
       });
     }
@@ -23,27 +23,27 @@ export default async function handler(req, res) {
         sender: {
           phone1: { number: orderDetails.phone },
           contactName: orderDetails.name,
-          dropoffOfficeId: orderDetails.officeId // The ID of the drop-off office
+          dropoffOfficeId: orderDetails.officeId // Sender's drop-off office
         },
         recipient: {
-          phone1: { number: "0899445566" }, // Example recipient phone
-          clientName: "Recipient Name", // Example recipient name
+          phone1: { number: orderDetails.recipientPhone },
+          clientName: orderDetails.recipientName,
           privatePerson: true,
-          pickupOfficeId: orderDetails.recipientOfficeId || 77 // ID of the recipient's pickup office
+          pickupOfficeId: orderDetails.recipientOfficeId // Recipient's pickup office
         },
         service: {
-          serviceId: 505, // Adjust based on available services
+          serviceId: 505, // Example service ID
           autoAdjustPickupDate: true
         },
         content: {
           parcelsCount: orderDetails.parcelsCount || 1,
           contents: orderDetails.contents || "Default package content",
-          totalWeight: orderDetails.totalWeight || 0.5
+          totalWeight: orderDetails.totalWeight || 1.0
         },
         payment: {
           courierServicePayer: orderDetails.payerRole || "SENDER"
         },
-        ref1: `Order ${orderDetails.ref || "N/A"}`
+        ref1: orderDetails.ref || "Order123"
       };
 
       // Make the request to Speedy's API
