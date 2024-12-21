@@ -6,22 +6,22 @@ export default async function handler(req, res) {
       const { orderDetails } = req.body;
 
       // Validate required fields
-      if (!orderDetails.city || !orderDetails.street || !orderDetails.sender || !orderDetails.recipientPhone) {
+      if (!orderDetails.city || !orderDetails.street || !orderDetails.sender || !orderDetails.recipientPhone || !orderDetails.zipCode) {
         return res.status(400).json({
           error: {
             context: "validation.error",
-            message: "Missing required fields: city, street, sender, or recipientPhone.",
+            message: "Missing required fields: city, street, zipCode, sender, or recipientPhone.",
           },
         });
       }
 
       // Fetch siteId (City)
-      const siteId = await getSiteId(orderDetails.city);
+      const siteId = await getSiteId(orderDetails.city, orderDetails.zipCode);
       if (!siteId) {
         return res.status(400).json({
           error: {
             context: "siteId.error",
-            message: `City "${orderDetails.city}" not found.`,
+            message: `City "${orderDetails.city}" with ZIP code "${orderDetails.zipCode}" not found.`,
           },
         });
       }
@@ -88,17 +88,24 @@ export default async function handler(req, res) {
 }
 
 // Helper function to fetch siteId (City)
-async function getSiteId(cityName) {
+async function getSiteId(cityName, postCode) {
   try {
     const payload = {
       userName: process.env.SPEEDY_USERNAME,
       password: process.env.SPEEDY_PASSWORD,
       language: "EN",
+      countryId: 100, // Bulgaria
       name: cityName,
+      postCode: postCode
     };
 
+    console.log("Fetching siteId with payload:", payload);
+
     const response = await axios.post(`${process.env.SPEEDY_API_BASE_URL}/location/site/`, payload);
-    return response.data[0]?.id; // Return the first match
+
+    console.log("SiteId API response:", response.data);
+
+    return response.data.sites[0]?.id; // Return the first matching siteId
   } catch (error) {
     console.error("Error fetching siteId:", error.response?.data || error.message);
     throw new Error("Could not fetch siteId");
@@ -113,11 +120,16 @@ async function getStreetId(siteId, streetName) {
       password: process.env.SPEEDY_PASSWORD,
       language: "EN",
       siteId: siteId,
-      name: streetName,
+      name: streetName
     };
 
+    console.log("Fetching streetId with payload:", payload);
+
     const response = await axios.post(`${process.env.SPEEDY_API_BASE_URL}/location/street/`, payload);
-    return response.data[0]?.id; // Return the first match
+
+    console.log("StreetId API response:", response.data);
+
+    return response.data.streets[0]?.id; // Return the first matching streetId
   } catch (error) {
     console.error("Error fetching streetId:", error.response?.data || error.message);
     throw new Error("Could not fetch streetId");
