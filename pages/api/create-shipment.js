@@ -51,11 +51,11 @@ export default async function handler(req, res) {
             countryId: 100, // Bulgaria
             siteId: siteId,
             streetId: streetId,
-            streetNo: orderDetails.streetNo,
-            blockNo: orderDetails.blockNo,
-            entranceNo: orderDetails.entranceNo,
-            floorNo: orderDetails.floorNo,
-            apartmentNo: orderDetails.apartmentNo,
+            streetNo: orderDetails.streetNo || "N/A", // Default to "N/A" if not provided
+            blockNo: orderDetails.blockNo || "",
+            entranceNo: orderDetails.entranceNo || "",
+            floorNo: orderDetails.floorNo || "",
+            apartmentNo: orderDetails.apartmentNo || "",
           },
         },
         service: orderDetails.service,
