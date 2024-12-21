@@ -171,6 +171,7 @@ async function getSiteId(cityName, postCode) {
 
 // Helper function to fetch streetId (Street)
 // Helper function to fetch streetId (Street)
+// Helper function to fetch streetId (Street)
 async function getStreetId(siteId, streetName) {
   try {
     // Normalize street name by removing prefixes
@@ -199,5 +200,4 @@ async function getStreetId(siteId, streetName) {
     console.error("Error fetching streetId:", error.response?.data || error.message);
     throw new Error("Could not fetch streetId");
   }
-}
 }
