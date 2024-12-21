@@ -170,17 +170,21 @@ async function getSiteId(cityName, postCode) {
 }
 
 // Helper function to fetch streetId (Street)
+// Helper function to fetch streetId (Street)
 async function getStreetId(siteId, streetName) {
   try {
+    // Normalize street name by removing prefixes
+    const normalizedStreetName = streetName.replace(/^(улица|ulitsa|ул\.|street)\s*/i, "").trim();
+
     const payload = {
       userName: process.env.SPEEDY_USERNAME,
       password: process.env.SPEEDY_PASSWORD,
       language: "EN",
       siteId: siteId,
-      name: streetName
+      name: normalizedStreetName,
     };
 
-    console.log("Fetching streetId with payload:", payload);
+    console.log("Fetching streetId with normalized payload:", payload);
 
     const response = await axios.post(`${process.env.SPEEDY_API_BASE_URL}/location/street/`, payload);
 
@@ -195,4 +199,5 @@ async function getStreetId(siteId, streetName) {
     console.error("Error fetching streetId:", error.response?.data || error.message);
     throw new Error("Could not fetch streetId");
   }
+}
 }
