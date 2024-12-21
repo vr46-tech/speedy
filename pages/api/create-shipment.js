@@ -43,7 +43,7 @@ export default async function handler(req, res) {
         pickupDate: orderDetails.pickupDate || new Date().toISOString().split('T')[0], // Default to today
       };
 
-      // Add office delivery details if specified
+      // Add office delivery if specified
       if (orderDetails.deliveryToOffice) {
         payload.officeId = orderDetails.officeId; // Include office ID for office delivery
       }
@@ -54,8 +54,22 @@ export default async function handler(req, res) {
       // Return the response from Speedy's API
       res.status(200).json(response.data);
     } catch (error) {
-      // Handle API errors and return appropriate response
       const errorMessage = error.response?.data || error.message;
+
+      // Handle expired pickup time and suggest office delivery
+      if (
+        errorMessage?.context ===
+        "service_collection_validator.courier-collection-expired-office-collection-possible"
+      ) {
+        return res.status(400).json({
+          error: {
+            message: "Pickup time expired. Office delivery is recommended.",
+            suggestedOffice: "565 - Sofia - Druzhba 1, Do Ezeryoto",
+          },
+        });
+      }
+
+      // Handle other errors
       res.status(500).json({
         error: {
           context: "shipment_creation_error",
