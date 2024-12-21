@@ -1,11 +1,13 @@
 import axios from 'axios';
 
 export default async function handler(req, res) {
+  console.log("Incoming Request:", req.method, req.body);
+
   if (req.method === 'POST') {
     try {
       const shopifyPayload = req.body;
 
-      // Extract shipping information from Shopify payload
+      // Validate the incoming Shopify payload
       if (
         !shopifyPayload.shipping_address ||
         !shopifyPayload.shipping_address.city ||
@@ -13,6 +15,7 @@ export default async function handler(req, res) {
         !shopifyPayload.shipping_address.address1 ||
         !shopifyPayload.shipping_address.phone
       ) {
+        console.log("Validation failed: Missing required fields in Shopify payload.");
         return res.status(400).json({
           error: {
             context: "validation.error",
@@ -20,6 +23,8 @@ export default async function handler(req, res) {
           },
         });
       }
+
+      console.log("Shopify Payload:", JSON.stringify(shopifyPayload, null, 2));
 
       const orderDetails = {
         city: shopifyPayload.shipping_address.city,
@@ -48,8 +53,11 @@ export default async function handler(req, res) {
         ref: `Order-${shopifyPayload.id}`
       };
 
+      console.log("Processed Order Details:", JSON.stringify(orderDetails, null, 2));
+
       // Fetch siteId (City)
       const siteId = await getSiteId(orderDetails.city, orderDetails.zipCode);
+      console.log("Fetched SiteId:", siteId);
       if (!siteId) {
         return res.status(400).json({
           error: {
@@ -61,6 +69,7 @@ export default async function handler(req, res) {
 
       // Fetch streetId (Street)
       const streetId = await getStreetId(siteId, orderDetails.street);
+      console.log("Fetched StreetId:", streetId);
       if (!streetId) {
         return res.status(400).json({
           error: {
@@ -97,11 +106,12 @@ export default async function handler(req, res) {
         ref1: orderDetails.ref || "ORDER123456",
       };
 
+      console.log("Prepared Shipment Payload:", JSON.stringify(payload, null, 2));
+
       // Make the API request to create the shipment
       const response = await axios.post(`${process.env.SPEEDY_API_BASE_URL}/shipment/`, payload);
 
-      // Log the successful shipment creation
-      console.log("Shipment created successfully:", response.data);
+      console.log("Shipment created successfully:", JSON.stringify(response.data, null, 2));
 
       res.status(200).json({
         message: "Shipment created successfully",
@@ -110,7 +120,6 @@ export default async function handler(req, res) {
     } catch (error) {
       const errorMessage = error.response?.data || error.message;
 
-      // Log and return the error
       console.error("Error handling Shopify webhook or creating shipment:", errorMessage);
       res.status(500).json({
         error: {
