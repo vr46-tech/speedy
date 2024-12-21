@@ -15,6 +15,9 @@ export default async function handler(req, res) {
         });
       }
 
+      // Construct the API base URL
+      const baseUrl = process.env.SPEEDY_API_BASE_URL || "https://api.speedy.bg/v1";
+
       // Prepare the request payload for Speedy's API
       const payload = {
         userName: process.env.SPEEDY_USERNAME,
@@ -28,16 +31,19 @@ export default async function handler(req, res) {
         ref1: orderDetails.ref || "ORDER123456"
       };
 
+      // Log the base URL for debugging
+      console.log("Sending request to:", `${baseUrl}/shipment/`);
+
       // Make the request to Speedy's API
-      const response = await axios.post(
-        `${process.env.SPEEDY_API_BASE_URL}/shipment/`,
-        payload
-      );
+      const response = await axios.post(`${baseUrl}/shipment/`, payload);
 
       // Return the response from Speedy's API
       res.status(200).json(response.data);
     } catch (error) {
       const errorMessage = error.response?.data || error.message;
+
+      // Log the error for debugging
+      console.error("Error in shipment creation:", errorMessage);
 
       // Handle errors
       res.status(500).json({
