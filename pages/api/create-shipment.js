@@ -5,11 +5,11 @@ export default async function handler(req, res) {
     const { orderDetails } = req.body;
 
     // Validate required fields
-    if (!orderDetails.phone || !orderDetails.name || !orderDetails.address) {
+    if (!orderDetails.phone || !orderDetails.name || !orderDetails.officeId) {
       return res.status(400).json({
         error: {
           context: "validation.error",
-          message: "Missing required fields: phone, name, or address.",
+          message: "Missing required fields: phone, name, or officeId.",
         },
       });
     }
@@ -19,38 +19,32 @@ export default async function handler(req, res) {
       const payload = {
         userName: process.env.SPEEDY_USERNAME,
         password: process.env.SPEEDY_PASSWORD,
-        service: { serviceId: 505 }, // Example service ID, adjust as needed
-        content: {
-          parcelsCount: 1,
-          totalWeight: 2.0,
-          contents: "Order Items",
-          package: "BOX",
+        language: "EN",
+        sender: {
+          phone1: { number: orderDetails.phone },
+          contactName: orderDetails.name,
+          dropoffOfficeId: orderDetails.officeId // The ID of the drop-off office
         },
         recipient: {
-          phone1: { number: orderDetails.phone },
+          phone1: { number: "0899445566" }, // Example recipient phone
+          clientName: "Recipient Name", // Example recipient name
           privatePerson: true,
-          clientName: orderDetails.name,
-          address: {
-            countryId: 100,
-            siteId: 68134,
-            streetId: 3109,
-            streetNo: orderDetails.address,
-          },
+          pickupOfficeId: orderDetails.recipientOfficeId || 77 // ID of the recipient's pickup office
+        },
+        service: {
+          serviceId: 505, // Adjust based on available services
+          autoAdjustPickupDate: true
+        },
+        content: {
+          parcelsCount: orderDetails.parcelsCount || 1,
+          contents: orderDetails.contents || "Default package content",
+          totalWeight: orderDetails.totalWeight || 0.5
         },
         payment: {
-          payerRole: orderDetails.payerRole || "SENDER", // Default payerRole
+          courierServicePayer: orderDetails.payerRole || "SENDER"
         },
+        ref1: `Order ${orderDetails.ref || "N/A"}`
       };
-
-      // Include the drop-off office (origin office)
-      if (orderDetails.officeToBeCalledId) {
-        payload.officeToBeCalledId = orderDetails.officeToBeCalledId; // Drop-off office ID
-      }
-
-      // Include the delivery office if specified
-      if (orderDetails.deliveryToOffice && orderDetails.officeId) {
-        payload.officeId = orderDetails.officeId; // Destination office ID
-      }
 
       // Make the request to Speedy's API
       const response = await axios.post('https://api.speedy.bg/v1/shipment', payload);
@@ -61,18 +55,6 @@ export default async function handler(req, res) {
       const errorMessage = error.response?.data || error.message;
 
       // Handle errors
-      if (
-        errorMessage?.context ===
-        "service_collection_validator.courier-collection-expired-office-collection-possible"
-      ) {
-        return res.status(400).json({
-          error: {
-            message: "Pickup time expired. Please drop off at an office.",
-            suggestedOffice: "565 - Sofia - Druzhba 1, Do Ezeryoto",
-          },
-        });
-      }
-
       res.status(500).json({
         error: {
           context: "shipment_creation_error",
