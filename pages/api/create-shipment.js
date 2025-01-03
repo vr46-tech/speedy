@@ -24,43 +24,50 @@ export default async function handler(req, res) {
         });
       }
 
-      const orderDetails = {
+      const shippingAddress = {
+        address1: shopifyPayload.shipping_address.address1,
         city: shopifyPayload.shipping_address.city,
-        zipCode: shopifyPayload.shipping_address.zip,
-        street: shopifyPayload.shipping_address.address1,
-        sender: {
-          phone1: { number: "0888112233" },
-          contactName: "IVAN PETROV",
-          email: "ivan@petrov.bg"
-        },
-        recipientPhone: shopifyPayload.shipping_address.phone,
-        recipientName: `${shopifyPayload.shipping_address.first_name} ${shopifyPayload.shipping_address.last_name}`,
-        service: { serviceId: 505, autoAdjustPickupDate: true },
-        content: { parcelsCount: 1, contents: "Documents", package: "ENVELOPE", totalWeight: 0.2 },
-        payment: { courierServicePayer: "RECIPIENT" },
-        ref: `Order-${shopifyPayload.id}`
+        zip: shopifyPayload.shipping_address.zip,
+        country: shopifyPayload.shipping_address.country || "Unknown",
+        phone: shopifyPayload.shipping_address.phone,
+      };
+
+      const orderDetails = {
+        shopifyOrderId: shopifyPayload.id,
+        orderNumber: shopifyPayload.order_number,
+        customerName: `${shopifyPayload.shipping_address.first_name} ${shopifyPayload.shipping_address.last_name}`,
+        email: shopifyPayload.email || "",
+        phone: shopifyPayload.phone || shopifyPayload.shipping_address.phone || "",
+        shippingAddress: JSON.stringify(shippingAddress), // Convert shipping address to JSONB
+        totalPrice: parseFloat(shopifyPayload.current_total_price || 0.0),
+        currency: shopifyPayload.currency || "EUR",
+        orderStatus: shopifyPayload.financial_status || "created",
       };
 
       console.log("Extracted Order Details:", JSON.stringify(orderDetails, null, 2));
 
-      const siteId = await getSiteId(orderDetails.city, orderDetails.zipCode);
+      const siteId = await getSiteId(shippingAddress.city, shippingAddress.zip);
       console.log("Fetched siteId:", siteId);
 
-      if (!siteId) throw new Error(`siteId not found for city: ${orderDetails.city}, zipCode: ${orderDetails.zipCode}`);
+      if (!siteId) throw new Error(`siteId not found for city: ${shippingAddress.city}, zipCode: ${shippingAddress.zip}`);
 
-      const streetId = await getStreetId(siteId, orderDetails.street);
+      const streetId = await getStreetId(siteId, shippingAddress.address1);
       console.log("Fetched streetId:", streetId);
 
-      if (!streetId) throw new Error(`streetId not found for street: ${orderDetails.street}, siteId: ${siteId}`);
+      if (!streetId) throw new Error(`streetId not found for street: ${shippingAddress.address1}, siteId: ${siteId}`);
 
-      const payload = {
+      const shipmentPayload = {
         userName: process.env.SPEEDY_USERNAME,
         password: process.env.SPEEDY_PASSWORD,
         language: "EN",
-        sender: orderDetails.sender,
+        sender: {
+          phone1: { number: "0888112233" },
+          contactName: "IVAN PETROV",
+          email: "ivan@petrov.bg",
+        },
         recipient: {
-          phone1: { number: orderDetails.recipientPhone },
-          clientName: orderDetails.recipientName,
+          phone1: { number: orderDetails.phone },
+          clientName: orderDetails.customerName,
           privatePerson: true,
           address: {
             countryId: 100,
@@ -69,23 +76,29 @@ export default async function handler(req, res) {
             streetNo: "N/A",
           },
         },
-        service: orderDetails.service,
-        content: orderDetails.content,
-        payment: orderDetails.payment,
-        ref1: orderDetails.ref || "ORDER123456",
+        service: { serviceId: 505, autoAdjustPickupDate: true },
+        content: { parcelsCount: 1, contents: "Documents", package: "ENVELOPE", totalWeight: 0.2 },
+        payment: { courierServicePayer: "RECIPIENT" },
+        ref1: `Order-${orderDetails.shopifyOrderId}`,
       };
 
-      console.log("Prepared Shipment Payload:", JSON.stringify(payload, null, 2));
+      console.log("Prepared Shipment Payload:", JSON.stringify(shipmentPayload, null, 2));
 
       // Save the order to the `orders` table if it doesn't already exist
       await pool.query(
-        `INSERT INTO orders (shopify_order_id, order_number, customer_name, created_at, updated_at)
-         VALUES ($1, $2, $3, NOW(), NOW())
+        `INSERT INTO orders (shopify_order_id, order_number, customer_name, email, phone, shipping_address, total_price, currency, order_status, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
          ON CONFLICT (shopify_order_id) DO NOTHING`,
         [
-          shopifyPayload.id, // Correctly map shopify_order_id
-          shopifyPayload.order_number, // Ensure order_number is passed
-          `${shopifyPayload.shipping_address.first_name} ${shopifyPayload.shipping_address.last_name}`
+          orderDetails.shopifyOrderId,
+          orderDetails.orderNumber,
+          orderDetails.customerName,
+          orderDetails.email,
+          orderDetails.phone,
+          orderDetails.shippingAddress,
+          orderDetails.totalPrice,
+          orderDetails.currency,
+          orderDetails.orderStatus,
         ]
       );
 
@@ -93,13 +106,13 @@ export default async function handler(req, res) {
       const dbResult = await pool.query(
         `INSERT INTO shipments (order_id, shipment_status, created_at, updated_at) 
          VALUES ($1, $2, NOW(), NOW()) RETURNING id`,
-        [shopifyPayload.id, 'pending']
+        [orderDetails.shopifyOrderId, 'pending']
       );
 
       const shipmentId = dbResult.rows[0].id;
 
       // Make the API request to create the shipment
-      const response = await axios.post(`${process.env.SPEEDY_API_BASE_URL}/shipment/`, payload);
+      const response = await axios.post(`${process.env.SPEEDY_API_BASE_URL}/shipment/`, shipmentPayload);
 
       console.log("Shipment created successfully:", response.data);
 
