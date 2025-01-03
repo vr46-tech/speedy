@@ -66,7 +66,7 @@ export default async function handler(req, res) {
             countryId: 100,
             siteId: siteId,
             streetId: streetId,
-            streetNo: orderDetails.streetNo || "N/A",
+            streetNo: "N/A",
           },
         },
         service: orderDetails.service,
@@ -79,9 +79,9 @@ export default async function handler(req, res) {
 
       // Save the order to the `orders` table if it doesn't already exist
       await pool.query(
-        `INSERT INTO orders (id, customer_name, created_at, updated_at)
+        `INSERT INTO orders (shopify_order_id, customer_name, created_at, updated_at)
          VALUES ($1, $2, NOW(), NOW())
-         ON CONFLICT (id) DO NOTHING`,
+         ON CONFLICT (shopify_order_id) DO NOTHING`,
         [shopifyPayload.id, `${shopifyPayload.shipping_address.first_name} ${shopifyPayload.shipping_address.last_name}`]
       );
 
