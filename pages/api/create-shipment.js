@@ -78,14 +78,12 @@ export default async function handler(req, res) {
       console.log("Prepared Shipment Payload:", JSON.stringify(payload, null, 2));
 
       // Save the order to the `orders` table if it doesn't already exist
-      console.log("shopify_order_id:", shopify_order_id);
-      console.log("order_number:", order_number);
       await pool.query(
         `INSERT INTO orders (shopify_order_id, order_number, customer_name, created_at, updated_at)
          VALUES ($1, $2, $3, NOW(), NOW())
          ON CONFLICT (shopify_order_id) DO NOTHING`,
         [
-          shopifyPayload.id,
+          shopifyPayload.id, // Correctly map shopify_order_id
           shopifyPayload.order_number, // Ensure order_number is passed
           `${shopifyPayload.shipping_address.first_name} ${shopifyPayload.shipping_address.last_name}`
         ]
