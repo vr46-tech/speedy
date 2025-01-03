@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { pool } from '../../lib/db'; // Import your database pool
+import { pool } from './db'; // Import your database pool
 
 export default async function handler(req, res) {
   if (req.method === 'POST') {
