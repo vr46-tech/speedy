@@ -85,29 +85,47 @@ export default async function handler(req, res) {
       console.log("Prepared Shipment Payload:", JSON.stringify(shipmentPayload, null, 2));
 
       // Save the order to the `orders` table if it doesn't already exist
-      await pool.query(
-        `INSERT INTO orders (shopify_order_id, order_number, customer_name, email, phone, shipping_address, total_price, currency, order_status, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
-         ON CONFLICT (shopify_order_id) DO NOTHING`,
-        [
-          orderDetails.shopifyOrderId,
-          orderDetails.orderNumber,
-          orderDetails.customerName,
-          orderDetails.email,
-          orderDetails.phone,
-          orderDetails.shippingAddress,
-          orderDetails.totalPrice,
-          orderDetails.currency,
-          orderDetails.orderStatus,
-        ]
-      );
+      const insertOrderSQL = `
+        INSERT INTO orders (shopify_order_id, order_number, customer_name, email, phone, shipping_address, total_price, currency, order_status, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
+        ON CONFLICT (shopify_order_id) DO NOTHING
+      `;
+      console.log("Executing SQL for orders:", insertOrderSQL, [
+        orderDetails.shopifyOrderId,
+        orderDetails.orderNumber,
+        orderDetails.customerName,
+        orderDetails.email,
+        orderDetails.phone,
+        orderDetails.shippingAddress,
+        orderDetails.totalPrice,
+        orderDetails.currency,
+        orderDetails.orderStatus,
+      ]);
+      await pool.query(insertOrderSQL, [
+        orderDetails.shopifyOrderId,
+        orderDetails.orderNumber,
+        orderDetails.customerName,
+        orderDetails.email,
+        orderDetails.phone,
+        orderDetails.shippingAddress,
+        orderDetails.totalPrice,
+        orderDetails.currency,
+        orderDetails.orderStatus,
+      ]);
 
       // Save initial shipment details to the `shipments` table
-      const dbResult = await pool.query(
-        `INSERT INTO shipments (order_id, shipment_status, created_at, updated_at) 
-         VALUES ($1, $2, NOW(), NOW()) RETURNING id`,
-        [orderDetails.shopifyOrderId, 'pending']
-      );
+      const insertShipmentSQL = `
+        INSERT INTO shipments (order_id, shipment_status, created_at, updated_at) 
+        VALUES ($1, $2, NOW(), NOW()) RETURNING id
+      `;
+      console.log("Executing SQL for shipments:", insertShipmentSQL, [
+        orderDetails.shopifyOrderId,
+        'pending',
+      ]);
+      const dbResult = await pool.query(insertShipmentSQL, [
+        orderDetails.shopifyOrderId,
+        'pending',
+      ]);
 
       const shipmentId = dbResult.rows[0].id;
 
@@ -117,22 +135,29 @@ export default async function handler(req, res) {
       console.log("Shipment created successfully:", response.data);
 
       // Update the shipment record with Speedy response details
-      await pool.query(
-        `UPDATE shipments 
-         SET speedy_shipment_id = $1, 
-             waybill_url = $2, 
-             shipment_status = $3, 
-             api_response = $4, 
-             updated_at = NOW() 
-         WHERE id = $5`,
-        [
-          response.data.shipmentOrderNumber,
-          response.data.waybill,
-          'created',
-          response.data,
-          shipmentId
-        ]
-      );
+      const updateShipmentSQL = `
+        UPDATE shipments 
+        SET speedy_shipment_id = $1, 
+            waybill_url = $2, 
+            shipment_status = $3, 
+            api_response = $4, 
+            updated_at = NOW() 
+        WHERE id = $5
+      `;
+      console.log("Executing SQL for updating shipments:", updateShipmentSQL, [
+        response.data.shipmentOrderNumber,
+        response.data.waybill,
+        'created',
+        response.data,
+        shipmentId,
+      ]);
+      await pool.query(updateShipmentSQL, [
+        response.data.shipmentOrderNumber,
+        response.data.waybill,
+        'created',
+        response.data,
+        shipmentId,
+      ]);
 
       res.status(200).json({
         message: "Shipment created successfully",
