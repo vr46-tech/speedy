@@ -77,7 +77,15 @@ export default async function handler(req, res) {
 
       console.log("Prepared Shipment Payload:", JSON.stringify(payload, null, 2));
 
-      // Save initial shipment details to the database
+      // Save the order to the `orders` table if it doesn't already exist
+      await pool.query(
+        `INSERT INTO orders (id, customer_name, created_at, updated_at)
+         VALUES ($1, $2, NOW(), NOW())
+         ON CONFLICT (id) DO NOTHING`,
+        [shopifyPayload.id, `${shopifyPayload.shipping_address.first_name} ${shopifyPayload.shipping_address.last_name}`]
+      );
+
+      // Save initial shipment details to the `shipments` table
       const dbResult = await pool.query(
         `INSERT INTO shipments (order_id, shipment_status, created_at, updated_at) 
          VALUES ($1, $2, NOW(), NOW()) RETURNING id`,
