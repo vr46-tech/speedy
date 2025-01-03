@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { pool } from './db'; // Import your database pool
+import { pool } from './db'; // Ensure the correct relative path to db.js
 
 export default async function handler(req, res) {
   if (req.method === 'POST') {
@@ -77,22 +77,36 @@ export default async function handler(req, res) {
 
       console.log("Prepared Shipment Payload:", JSON.stringify(payload, null, 2));
 
-      // Save shipment details to the database before making the API request
+      // Save initial shipment details to the database
       const dbResult = await pool.query(
-        'INSERT INTO shipments (status, ref, recipient_name, city, zip_code, street) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
-        ['pending', orderDetails.ref, orderDetails.recipientName, orderDetails.city, orderDetails.zipCode, orderDetails.street]
+        `INSERT INTO shipments (order_id, shipment_status, created_at, updated_at) 
+         VALUES ($1, $2, NOW(), NOW()) RETURNING id`,
+        [shopifyPayload.id, 'pending']
       );
 
       const shipmentId = dbResult.rows[0].id;
 
+      // Make the API request to create the shipment
       const response = await axios.post(`${process.env.SPEEDY_API_BASE_URL}/shipment/`, payload);
 
       console.log("Shipment created successfully:", response.data);
 
-      // Update the shipment record with API response data
+      // Update the shipment record with Speedy response details
       await pool.query(
-        'UPDATE shipments SET status = $1, shipment_order_number = $2, waybill = $3 WHERE id = $4',
-        ['created', response.data.shipmentOrderNumber, response.data.waybill, shipmentId]
+        `UPDATE shipments 
+         SET speedy_shipment_id = $1, 
+             waybill_url = $2, 
+             shipment_status = $3, 
+             api_response = $4, 
+             updated_at = NOW() 
+         WHERE id = $5`,
+        [
+          response.data.shipmentOrderNumber,
+          response.data.waybill,
+          'created',
+          response.data,
+          shipmentId
+        ]
       );
 
       res.status(200).json({
