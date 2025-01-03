@@ -77,17 +77,17 @@ export default async function handler(req, res) {
         orderDetails.orderStatus,
       ]);
 
-      const orderId = orderResult.rows[0]?.id;
-      if (!orderId) {
-        // If the order already exists, fetch its ID
-        const fetchOrderIdSQL = `SELECT id FROM orders WHERE shopify_order_id = $1`;
-        console.log("Executing SQL to fetch existing order ID:", fetchOrderIdSQL, [orderDetails.shopifyOrderId]);
-        const fetchResult = await pool.query(fetchOrderIdSQL, [orderDetails.shopifyOrderId]);
-        if (fetchResult.rows.length === 0) {
-          throw new Error("Failed to retrieve order ID for the existing order.");
-        }
-        orderId = fetchResult.rows[0].id;
-      }
+      let orderId = orderResult.rows[0]?.id;
+if (!orderId) {
+  // If the order already exists, fetch its ID
+  const fetchOrderIdSQL = `SELECT id FROM orders WHERE shopify_order_id = $1`;
+  console.log("Executing SQL to fetch existing order ID:", fetchOrderIdSQL, [orderDetails.shopifyOrderId]);
+  const fetchResult = await pool.query(fetchOrderIdSQL, [orderDetails.shopifyOrderId]);
+  if (fetchResult.rows.length === 0) {
+    throw new Error("Failed to retrieve order ID for the existing order.");
+  }
+  orderId = fetchResult.rows[0].id; // Reassign the `orderId` variable
+}    
 
       console.log("Retrieved Order ID:", orderId);
 
