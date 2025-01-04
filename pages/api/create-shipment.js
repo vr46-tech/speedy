@@ -33,16 +33,19 @@ export default async function handler(req, res) {
       };
 
       const orderDetails = {
-        shopifyOrderId: shopifyPayload.id,
-        orderNumber: shopifyPayload.order_number,
-        customerName: `${shopifyPayload.shipping_address.first_name} ${shopifyPayload.shipping_address.last_name}`,
-        email: shopifyPayload.email || "",
-        phone: shopifyPayload.phone || shopifyPayload.shipping_address.phone || "",
-        shippingAddress: JSON.stringify(shippingAddress), // Convert shipping address to JSONB
-        totalPrice: parseFloat(shopifyPayload.current_total_price || 0.0),
-        currency: shopifyPayload.currency || "EUR",
-        orderStatus: shopifyPayload.financial_status || "created",
-      };
+  shopifyOrderId: shopifyPayload.id,
+  orderNumber: shopifyPayload.order_number,
+  customerName: `${shopifyPayload.shipping_address.first_name} ${shopifyPayload.shipping_address.last_name}`,
+  email: shopifyPayload.email || "",
+  phone: shopifyPayload.phone || shopifyPayload.shipping_address.phone || "",
+  city: shopifyPayload.shipping_address.city,
+  zipCode: shopifyPayload.shipping_address.zip,
+  street: shopifyPayload.shipping_address.address1, // Extract street address
+  shippingAddress: JSON.stringify(shippingAddress), // Convert shipping address to JSONB
+  totalPrice: parseFloat(shopifyPayload.current_total_price || 0.0),
+  currency: shopifyPayload.currency || "EUR",
+  orderStatus: shopifyPayload.financial_status || "created",
+};
 
       console.log("Extracted Order Details:", JSON.stringify(orderDetails, null, 2));
 
@@ -223,6 +226,11 @@ async function getSiteId(cityName, postCode) {
 // Helper function to fetch streetId (Street)
 async function getStreetId(siteId, streetName) {
   try {
+    if (!streetName) {
+      throw new Error("Street name is undefined or empty");
+    }
+
+    // Normalize street name by removing prefixes
     const normalizedStreetName = streetName.replace(/^(улица|ulitsa|ул\.|street)\s*/i, "").trim();
 
     const payload = {
@@ -243,7 +251,7 @@ async function getStreetId(siteId, streetName) {
 
     console.log("Fetched streetId API response:", response.data);
 
-    return response.data.streets[0].id;
+    return response.data.streets[0].id; // Return the first matching streetId
   } catch (error) {
     console.error("Error fetching streetId:", error.response?.data || error.message);
     throw new Error("Could not fetch streetId");
