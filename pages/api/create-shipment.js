@@ -46,6 +46,20 @@ export default async function handler(req, res) {
 
       console.log("Extracted Order Details:", JSON.stringify(orderDetails, null, 2));
 
+      const siteId = await getSiteId(orderDetails.city, orderDetails.zipCode);
+      console.log("Fetched siteId:", siteId);
+
+      if (!siteId) {
+        throw new Error(`Site ID not found for city: ${orderDetails.city} and zip code: ${orderDetails.zipCode}`);
+      }
+
+      const streetId = await getStreetId(siteId, orderDetails.street);
+      console.log("Fetched streetId:", streetId);
+
+      if (!streetId) {
+        throw new Error(`Street ID not found for street: ${orderDetails.street} in siteId: ${siteId}`);
+      }
+
       // Save the order to the `orders` table if it doesn't already exist
       const insertOrderSQL = `
         INSERT INTO orders (shopify_order_id, order_number, customer_name, email, phone, shipping_address, total_price, currency, order_status, created_at, updated_at)
@@ -78,16 +92,15 @@ export default async function handler(req, res) {
       ]);
 
       let orderId = orderResult.rows[0]?.id;
-if (!orderId) {
-  // If the order already exists, fetch its ID
-  const fetchOrderIdSQL = `SELECT id FROM orders WHERE shopify_order_id = $1`;
-  console.log("Executing SQL to fetch existing order ID:", fetchOrderIdSQL, [orderDetails.shopifyOrderId]);
-  const fetchResult = await pool.query(fetchOrderIdSQL, [orderDetails.shopifyOrderId]);
-  if (fetchResult.rows.length === 0) {
-    throw new Error("Failed to retrieve order ID for the existing order.");
-  }
-  orderId = fetchResult.rows[0].id; // Reassign the `orderId` variable
-}    
+      if (!orderId) {
+        const fetchOrderIdSQL = `SELECT id FROM orders WHERE shopify_order_id = $1`;
+        console.log("Executing SQL to fetch existing order ID:", fetchOrderIdSQL, [orderDetails.shopifyOrderId]);
+        const fetchResult = await pool.query(fetchOrderIdSQL, [orderDetails.shopifyOrderId]);
+        if (fetchResult.rows.length === 0) {
+          throw new Error("Failed to retrieve order ID for the existing order.");
+        }
+        orderId = fetchResult.rows[0].id; // Reassign the `orderId` variable
+      }
 
       console.log("Retrieved Order ID:", orderId);
 
@@ -101,7 +114,7 @@ if (!orderId) {
 
       const shipmentId = dbResult.rows[0].id;
 
-      // Make the API request to create the shipment
+      // Prepare shipment payload
       const shipmentPayload = {
         userName: process.env.SPEEDY_USERNAME,
         password: process.env.SPEEDY_PASSWORD,
@@ -117,8 +130,8 @@ if (!orderId) {
           privatePerson: true,
           address: {
             countryId: 100,
-            siteId: 68134, // Example Site ID
-            streetId: 2190, // Example Street ID
+            siteId: siteId,
+            streetId: streetId,
             streetNo: "N/A",
           },
         },
@@ -175,5 +188,64 @@ if (!orderId) {
     }
   } else {
     res.status(405).json({ error: "Method Not Allowed" });
+  }
+}
+
+// Helper function to fetch siteId (City)
+async function getSiteId(cityName, postCode) {
+  try {
+    const payload = {
+      userName: process.env.SPEEDY_USERNAME,
+      password: process.env.SPEEDY_PASSWORD,
+      language: "EN",
+      countryId: 100,
+      name: cityName,
+      postCode: postCode,
+    };
+
+    console.log("Fetching siteId with payload:", payload);
+
+    const response = await axios.post(`${process.env.SPEEDY_API_BASE_URL}/location/site/`, payload);
+
+    if (!response.data.sites || response.data.sites.length === 0) {
+      throw new Error(`No site found for city "${cityName}" and ZIP code "${postCode}".`);
+    }
+
+    console.log("Fetched siteId API response:", response.data);
+
+    return response.data.sites[0].id;
+  } catch (error) {
+    console.error("Error fetching siteId:", error.response?.data || error.message);
+    throw new Error("Could not fetch siteId");
+  }
+}
+
+// Helper function to fetch streetId (Street)
+async function getStreetId(siteId, streetName) {
+  try {
+    const normalizedStreetName = streetName.replace(/^(улица|ulitsa|ул\.|street)\s*/i, "").trim();
+
+    const payload = {
+      userName: process.env.SPEEDY_USERNAME,
+      password: process.env.SPEEDY_PASSWORD,
+      language: "EN",
+      siteId: siteId,
+      name: normalizedStreetName,
+    };
+
+    console.log("Fetching streetId with payload:", payload);
+
+    const response = await axios.post(`${process.env.SPEEDY_API_BASE_URL}/location/street/`, payload);
+
+    if (!response.data.streets || response.data.streets.length === 0) {
+      throw new Error(`No street found for name "${streetName}" in siteId "${siteId}".`);
+    }
+
+    console.log("Fetched streetId API response:", response.data);
+
+    return response.data.streets[0].id;
+  } catch (error) {
+    console.error("Error fetching streetId:", error.response?.data || error.message);
+    throw new Error("Could not fetch streetId");
   }
 }
